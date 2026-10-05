@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="发卡台">
+<meta name="theme-color" content="#0f0f10">
+<title>发卡台 · 短视频去重</title>
+<style>
+:root {
+  --bg: #0f0f10;
+  --panel: #1a1a1c;
+  --panel-2: #252528;
+  --border: #2f2f33;
+  --text: #f0f0f2;
+  --muted: #8a8a90;
+  --accent: #4a9eff;
+  --accent-2: #34c759;
+  --danger: #ff453a;
+  --code: #ffd60a;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+html, body { touch-action: manipulation; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-size: 17px; line-height: 1.5;
+  -webkit-text-size-adjust: 100%; padding-bottom: 60px;
+  padding-top: env(safe-area-inset-top);
+}
+.container { max-width: 680px; margin: 0 auto; padding: 12px; }
+h1 { font-size: 19px; font-weight: 600; text-align: center; margin: 8px 0 2px; }
+.subtitle { font-size: 12px; color: var(--muted); text-align: center; margin-bottom: 14px; }
+.panel {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px; margin-bottom: 12px;
+}
+.panel h2 { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 500; letter-spacing: 0.5px; }
+label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+input[type="text"], select {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 13px; color: var(--text);
+  font-size: 17px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  margin-bottom: 12px; -webkit-appearance: none; appearance: none;
+}
+input[type="text"]::placeholder { color: #555; }
+input[type="text"]:focus, select:focus { outline: none; border-color: var(--accent); }
+select {
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><path fill='%238a8a90' d='M4 6l4 4 4-4'/></svg>");
+  background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px;
+}
+.btn {
+  display: block; width: 100%; padding: 16px; border: none;
+  border-radius: 12px; font-size: 17px; font-weight: 600;
+  cursor: pointer; margin-bottom: 8px; touch-action: manipulation;
+  -webkit-user-select: none; user-select: none;
+}
+.btn:active { opacity: 0.65; transform: scale(0.99); }
+.btn-primary { background: var(--accent); color: white; }
+.btn-secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+.btn-copy { background: var(--accent-2); color: white; }
+.code-out {
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 15px; word-break: break-all; color: var(--code);
+  margin: 8px 0; min-height: 24px; -webkit-user-select: text; user-select: text;
+  cursor: text;
+}
+.empty { color: #555; font-style: italic; }
+.hint { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+.hint code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+.history { font-size: 13px; }
+.history-item { padding: 9px 0; border-bottom: 1px solid var(--border); -webkit-user-select: text; user-select: text; }
+.history-item:last-child { border-bottom: none; }
+.history-empty { color: #555; font-style: italic; padding: 6px 0; }
+.history-meta { color: var(--muted); font-size: 11px; }
+.history-machine { color: var(--muted); font-family: ui-monospace, monospace; font-size: 12px; margin-top: 2px; word-break: break-all; }
+.history-code { color: var(--code); font-family: ui-monospace, monospace; word-break: break-all; margin-top: 2px; }
+.toast {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.88); color: white; padding: 10px 22px;
+  border-radius: 22px; font-size: 14px; opacity: 0;
+  transition: opacity 0.25s; pointer-events: none; z-index: 100;
+  white-space: nowrap; max-width: 90vw; text-align: center;
+}
+.toast.show { opacity: 1; }
+.danger-link { color: var(--danger); font-size: 13px; cursor: pointer; text-decoration: underline; display: inline-block; padding: 6px 0; }
+.divider { color: #444; margin: 0 8px; }
+.fail-msg { color: var(--danger); font-size: 13px; margin-top: 8px; display: none; }
+.fail-msg.show { display: block; }
+.warn-banner {
+  background: #3a2400; border: 1px solid #7a4d00; color: #ffd60a;
+  border-radius: 10px; padding: 12px; margin-bottom: 12px; font-size: 13px;
+  line-height: 1.55; display: none;
+}
+.warn-banner.show { display: block; }
+.warn-banner b { color: #ff9f0a; }
+</style>
+</head>
+<body>
+<!-- noscript 提示：iOS「文件」App 预览模式不执行 JS，按钮全部失效 -->
+<noscript>
+  <div style="position:fixed;top:0;left:0;right:0;background:#ff3b30;color:#fff;padding:14px;font-size:15px;line-height:1.6;z-index:9999;font-family:-apple-system,sans-serif;text-align:center;">
+    ⚠️ 检测到 JavaScript 未执行，按钮无法使用。<br>
+    <b>请在「文件」App 长按本文件 → 分享 →「在 Safari 中打开」</b>
+  </div>
+</noscript>
+<div class="container">
+  <h1>📱 发卡台</h1>
+  <div class="subtitle">短视频去重工具 · 离线激活码生成（单文件版）</div>
+
+  <div class="warn-banner" id="warn-banner"></div>
+
+  <div class="panel" id="setup-panel">
+    <h2>首次设置（一次性）</h2>
+    <label>授权签名密钥（_LICENSE_SECRET）</label>
+    <input type="text" id="secret-input" placeholder="粘贴 app.py 里 _LICENSE_SECRET 的值" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+    <button class="btn btn-primary" id="save-secret-btn">保存并启用</button>
+    <div class="hint">
+      密钥在 <code>app.py</code> 顶部 <code>_LICENSE_SECRET = "..."</code> 那一行。<br>
+      密钥只存在本机，不会上传任何地方。<br>
+      <b>iPhone 用户</b>：必须用 Safari 打开本文件，不能在「文件」App 里直接点开（直接点开按钮点不动）。
+    </div>
+    <div class="fail-msg" id="crypto-fail"></div>
+  </div>
+
+  <div class="panel" id="gen-panel" style="display:none">
+    <h2>生成激活码</h2>
+    <label>对方机器码</label>
+    <input type="text" id="mc-input" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+    <label>有效期</label>
+    <select id="exp-select">
+      <option value="永久">永久</option>
+      <option value="试用卡(3次)">试用卡 (3次去重)</option>
+      <option value="1天体验">1天体验</option>
+      <option value="30天">30天</option>
+      <option value="90天">90天</option>
+      <option value="180天">180天</option>
+      <option value="365天">365天</option>
+    </select>
+    <label>授权模块</label>
+    <select id="mod-select">
+      <option value="DM" selected>双开（去重+漫剧工坊）</option>
+      <option value="D">仅视频去重</option>
+      <option value="M">仅漫剧工坊</option>
+    </select>
+    <button class="btn btn-primary" id="gen-btn">生成激活码</button>
+    <label>激活码（长按可选中复制）</label>
+    <div class="code-out empty" id="code-out">（点「生成激活码」）</div>
+    <button class="btn btn-copy" id="copy-btn">📋 复制激活码</button>
+    <div class="hint">激活码绑定机器码；试用卡限 3 次去重（每产出 1 个成品计 1 次），用完失效。<br>
+    iPhone 上若「复制」按钮无效，请直接长按上方黄色激活码 → 在弹出菜单选「拷贝」。</div>
+  </div>
+
+  <div class="panel" id="hist-panel" style="display:none">
+    <h2>发卡记录（本地留档）</h2>
+    <div class="history" id="history-list">
+      <div class="history-empty">（还没发过激活码）</div>
+    </div>
+    <button class="btn btn-secondary" id="clear-hist-btn" style="margin-top:10px">清空记录</button>
+  </div>
+
+  <div class="panel">
+    <h2>设置</h2>
+    <span class="danger-link" id="reset-secret-link">重置密钥（重新输入）</span>
+    <span class="divider">·</span>
+    <span class="danger-link" id="clear-all-link">清空所有本机数据</span>
+  </div>
+
+  <div class="hint" style="text-align:center;margin-top:10px">
+    客户端当前版本 v3.5.0 · 单文件离线发卡
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+const STORAGE_SECRET = "lc_secret_v1";
+const STORAGE_HIST   = "lc_history_v1";
+
+// ====== 兼容性兜底：localStorage 在 iOS Safari file:// 下可能抛 SecurityError ======
+// 用 in-memory 对象兜底，至少本次会话能用
+const _memStore = {};
+function safeGet(key) {
+  try {
+    // 优先用 localStorage
+    return localStorage.getItem(key);
+  } catch (e) {
+    // file:// 下抛 SecurityError 或 Disabled 退回 in-memory
+    return _memStore[key] !== undefined ? _memStore[key] : null;
+  }
+}
+function safeSet(key, val) {
+  try {
+    localStorage.setItem(key, val);
+    // 同步到 in-memory 作为下次兜底
+    _memStore[key] = val;
+    return true;
+  } catch (e) {
+    _memStore[key] = val;
+    return false;  // 返回 false 提示用户存储不可持久化
+  }
+}
+function safeRemove(key) {
+  try { localStorage.removeItem(key); } catch (e) {}
+  delete _memStore[key];
+}
+
+// ====== confirm 兜底：iOS file:// 下 confirm 可能被屏蔽，改用同步 prompt 仿造 ======
+// 实测 iOS Safari 在 file:// 下 confirm/alert 是工作的，但 WKWebView 预览不工作
+function safeConfirm(msg) {
+  try {
+    return window.confirm(msg);
+  } catch (e) {
+    // 退化为 prompt：输入 y 表示确认
+    const r = window.prompt(msg + "\n\n输入 y 确认，其他取消：", "");
+    return r !== null && r.trim().toLowerCase() === "y";
+  }
+}
+
+// ===== 纯 JS SHA-256 + HMAC（无 SubtleCrypto 依赖，兼容微信内置/file://） =====
+const SHA_K = [
+  0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+];
+function rotr(n, x) { return (x >>> n) | (x << (32 - n)); }
+function sha256Bytes(input) {
+  const l = input.length;
+  const bitLen = l * 8;
+  const withPad = new Uint8Array(((l + 9 + 63) >> 6) << 6);
+  withPad.set(input);
+  withPad[l] = 0x80;
+  const dv = new DataView(withPad.buffer);
+  dv.setUint32(withPad.length - 4, bitLen >>> 0, false);
+  dv.setUint32(withPad.length - 8, Math.floor(bitLen / 0x100000000), false);
+  let H = [
+    0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
+    0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19
+  ];
+  const W = new Array(64);
+  for (let i = 0; i < withPad.length; i += 64) {
+    for (let tt = 0; tt < 16; tt++) W[tt] = dv.getUint32(i + tt * 4, false);
+    for (let tt = 16; tt < 64; tt++) {
+      const s0 = rotr(7, W[tt-15]) ^ rotr(18, W[tt-15]) ^ (W[tt-15] >>> 3);
+      const s1 = rotr(17, W[tt-2]) ^ rotr(19, W[tt-2]) ^ (W[tt-2] >>> 10);
+      W[tt] = (W[tt-16] + s0 + W[tt-7] + s1) >>> 0;
+    }
+    let [a,b,c,d,e,f,g,h] = H;
+    for (let tt = 0; tt < 64; tt++) {
+      const S1 = rotr(6, e) ^ rotr(11, e) ^ rotr(25, e);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + SHA_K[tt] + W[tt]) >>> 0;
+      const S0 = rotr(2, a) ^ rotr(13, a) ^ rotr(22, a);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) >>> 0;
+      h=g; g=f; f=e; e = (d + t1) >>> 0;
+      d=c; c=b; b=a; a = (t1 + t2) >>> 0;
+    }
+    H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;
+    H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;
+  }
+  return H.map(x => x.toString(16).padStart(8, "0")).join("");
+}
+function strToBytes(s) { return new TextEncoder().encode(s); }
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    out[i / 2] = parseInt(hex.substr(i, 2), 16);
+  }
+  return out;
+}
+function hmacSha256Hex(secret, message) {
+  let keyBytes = strToBytes(secret);
+  if (keyBytes.length > 64) keyBytes = hexToBytes(sha256Bytes(keyBytes));
+  const padded = new Uint8Array(64);
+  padded.set(keyBytes);
+  const ipad = new Uint8Array(64), opad = new Uint8Array(64);
+  for (let i = 0; i < 64; i++) {
+    ipad[i] = padded[i] ^ 0x36;
+    opad[i] = padded[i] ^ 0x5c;
+  }
+  const msgBytes = strToBytes(message);
+  const innerInput = new Uint8Array(ipad.length + msgBytes.length);
+  innerInput.set(ipad);
+  innerInput.set(msgBytes, ipad.length);
+  const inner = sha256Bytes(innerInput);
+  const innerBytes = hexToBytes(inner);
+  const outerInput = new Uint8Array(opad.length + innerBytes.length);
+  outerInput.set(opad);
+  outerInput.set(innerBytes, opad.length);
+  return sha256Bytes(outerInput);
+}
+
+function signLicense(secret, mc, expiry, modules) {
+  const mcN = mc.replace(/-/g, "").trim().toUpperCase();
+  let mods = (modules || "DM").toUpperCase().split("").filter(c => c === "D" || c === "M");
+  if (!mods.length) mods = ["D", "M"];
+  mods = [...new Set(mods)].sort();
+  const modStr = mods.join("");
+  const msg = mcN + "|" + expiry + "|" + modStr;
+  const full = hmacSha256Hex(secret, msg);
+  return expiry + "-" + modStr + "-" + full.slice(0, 20).toUpperCase();
+}
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+function ymd(d) {
+  return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+}
+function expiryStr(expLabel) {
+  if (expLabel === "永久") return "PERM";
+  if (expLabel === "试用卡(3次)") return "TRY3";
+  if (expLabel === "1天体验") {
+    const d = new Date(); d.setDate(d.getDate() + 1); return ymd(d);
+  }
+  const m = expLabel.match(/^(\d+)天$/);
+  if (m) {
+    const d = new Date(); d.setDate(d.getDate() + parseInt(m[1], 10));
+    return ymd(d);
+  }
+  throw new Error("有效期选项无效：" + expLabel);
+}
+function expDisplay(expiry) {
+  if (expiry === "PERM") return "永久";
+  if (expiry === "TRY3") return "试用卡(3次)";
+  return `至 ${expiry.slice(0,4)}-${expiry.slice(4,6)}-${expiry.slice(6,8)}`;
+}
+function nowStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+// ===== localStorage（带 in-memory 兜底） =====
+function loadSecret() { return safeGet(STORAGE_SECRET) || ""; }
+function saveSecret(s) { return safeSet(STORAGE_SECRET, s); }
+function loadHist() {
+  const raw = safeGet(STORAGE_HIST);
+  try { return JSON.parse(raw || "[]"); }
+  catch { return []; }
+}
+function saveHist(arr) { return safeSet(STORAGE_HIST, JSON.stringify(arr)); }
+
+// ===== UI =====
+const $ = id => document.getElementById(id);
+const setupPanel = $("setup-panel");
+const genPanel = $("gen-panel");
+const histPanel = $("hist-panel");
+const secretInput = $("secret-input");
+const mcInput = $("mc-input");
+const expSelect = $("exp-select");
+const codeOut = $("code-out");
+const histList = $("history-list");
+const toastEl = $("toast");
+const cryptoFailEl = $("crypto-fail");
+const warnBanner = $("warn-banner");
+
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  setTimeout(() => toastEl.classList.remove("show"), 2000);
+}
+
+function refreshPanels() {
+  const s = loadSecret();
+  if (s) {
+    setupPanel.style.display = "none";
+    genPanel.style.display = "";
+    histPanel.style.display = "";
+    refreshHistory();
+  } else {
+    setupPanel.style.display = "";
+    genPanel.style.display = "none";
+    histPanel.style.display = "none";
+  }
+}
+
+function refreshHistory() {
+  const arr = loadHist();
+  if (!arr.length) {
+    histList.innerHTML = '<div class="history-empty">（还没发过激活码）</div>';
+    return;
+  }
+  histList.innerHTML = arr.map(c => `
+    <div class="history-item">
+      <div class="history-meta">${c.date} · ${expDisplay(c.expiry)}</div>
+      <div class="history-machine">${c.machine}</div>
+      <div class="history-code">${c.code}</div>
+    </div>`).join("");
+}
+
+function checkCrypto() {
+  try {
+    const test = sha256Bytes(strToBytes("abc"));
+    if (test === "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") {
+      cryptoFailEl.classList.remove("show");
+      return true;
+    }
+  } catch (e) {}
+  cryptoFailEl.textContent = "⚠ SHA-256 自检失败，请用较新版本的浏览器打开。";
+  cryptoFailEl.classList.add("show");
+  return false;
+}
+
+// ===== 环境检测：提示用户用 Safari 打开 =====
+function detectEnv() {
+  const ua = navigator.userAgent;
+  const isWeixin = /MicroMessenger/i.test(ua);
+  const isQQ = /QQ\/|QQBrowser/i.test(ua);
+  const isFileProto = location.protocol === "file:";
+  // 「文件」App 预览模式：JS 不执行，根本走不到这里
+  // 这里检测的是：用户在 file:// 下用 Safari/微信/QQ 打开
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isSafari = isIOS && /Safari/i.test(ua) && !/Chrome|CriOS|FxiOS/i.test(ua);
+
+  let msg = "";
+  if (isWeixin) {
+    msg = `<b>⚠ 检测到你在微信里打开了本文件</b><br>
+    微信内置浏览器对本地 HTML 限制很多，按钮可能点不动、复制可能失效。<br>
+    请点右上角 <b>⋯</b> → 「在 Safari 中打开」（iPhone）或「在浏览器中打开」。`;
+  } else if (isQQ) {
+    msg = `<b>⚠ 检测到你在 QQ 内置浏览器里打开了本文件</b><br>
+    请点右上角 <b>⋯</b> → 「在 Safari 中打开」（iPhone）。`;
+  } else if (isIOS && isFileProto && !isSafari) {
+    msg = `<b>⚠ 检测到你在第三方浏览器打开本地 HTML</b><br>
+    iOS 上「文件」App 直接点开 HTML 时按钮完全没反应是正常现象（预览不支持 JS）。<br>
+    请在「文件」App 长按本文件 → 「分享」→ 「在 Safari 中打开」。`;
+  }
+  if (msg) {
+    warnBanner.innerHTML = msg;
+    warnBanner.classList.add("show");
+  }
+}
+
+// ===== 事件绑定：用 click + touchend 双绑定兜底 iOS click 延迟/不触发 =====
+// touchend 兜底：iOS 老版本 click 可能延迟 300ms；某些场景 click 不触发
+function bindTap(el, handler) {
+  if (!el) return;
+  let touched = false;
+  let lastTouchTime = 0;
+  // touchend 触发后 500ms 内的 click 跳过（防止双触发）
+  el.addEventListener("touchend", function(e) {
+    e.preventDefault();
+    touched = true;
+    lastTouchTime = Date.now();
+    try { handler.call(this, e); } catch (err) { toast("操作失败：" + (err.message || err)); }
+  }, { passive: false });
+  el.addEventListener("click", function(e) {
+    if (touched && Date.now() - lastTouchTime < 500) {
+      e.preventDefault();
+      return;
+    }
+    try { handler.call(this, e); } catch (err) { toast("操作失败：" + (err.message || err)); }
+  });
+}
+
+bindTap($("save-secret-btn"), () => {
+  if (!checkCrypto()) return;
+  const s = secretInput.value.trim();
+  if (!s) { toast("密钥不能为空"); return; }
+  const ok = saveSecret(s);
+  secretInput.value = "";
+  toast(ok ? "✓ 密钥已保存" : "✓ 本次会话已保存（注意：本机存储不可持久化，刷新后需重新输入）");
+  refreshPanels();
+});
+
+bindTap($("gen-btn"), () => {
+  const mc = mcInput.value.trim();
+  if (!mc) { toast("先输入对方机器码"); return; }
+  const clean = mc.replace(/-/g, "");
+  if (!/^[0-9A-Fa-f]{16}$/.test(clean)) {
+    if (!safeConfirm("机器码格式看起来不对（应为 XXXX-XXXX-XXXX-XXXX），仍要生成吗？")) return;
+  }
+  const secret = loadSecret();
+  if (!secret) { toast("密钥未设置"); refreshPanels(); return; }
+  let expiry;
+  try { expiry = expiryStr(expSelect.value); }
+  catch (e) { toast(e.message); return; }
+  const modSelect = $("mod-select");
+  const modules = modSelect ? modSelect.value : "DM";
+  try {
+    const code = signLicense(secret, mc, expiry, modules);
+    codeOut.textContent = code;
+    codeOut.classList.remove("empty");
+    const arr = loadHist();
+    arr.unshift({ machine: mc, code: code, expiry: expiry, modules: modules, date: nowStr() });
+    saveHist(arr);
+    refreshHistory();
+    toast("✓ 激活码已生成");
+  } catch (e) {
+    toast("生成失败：" + (e.message || e));
+  }
+});
+
+// 复制激活码：iOS file:// 下 clipboard API 和 execCommand 都不工作
+// 改成「自动选中元素文本 + 提示用户从系统菜单拷贝」
+async function copyText(t) {
+  // 优先用 Clipboard API
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(t);
+      return "ok";
+    }
+  } catch (e) {}
+  // 兜底：选中 codeOut 元素，iOS 会弹出系统级「拷贝」菜单
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(codeOut);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    // execCommand 在 iOS file:// 下可能不工作，但选中后用户可手动点「拷贝」
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) {}
+    if (ok) return "ok";
+    return "selected";  // 已选中，等用户从系统菜单拷贝
+  } catch (e) {
+    return "fail";
+  }
+}
+
+bindTap($("copy-btn"), async () => {
+  const txt = codeOut.textContent;
+  if (!txt || txt.startsWith("（")) { toast("还没有激活码"); return; }
+  const r = await copyText(txt);
+  if (r === "ok") toast("✓ 已复制到剪贴板");
+  else if (r === "selected") toast("已选中激活码，点弹出的「拷贝」按钮");
+  else toast("复制失败，请长按黄色激活码手动拷贝");
+});
+
+// 点击激活码自动选中
+bindTap(codeOut, () => {
+  if (codeOut.classList.contains("empty")) return;
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(codeOut);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch (e) {}
+});
+
+bindTap($("reset-secret-link"), () => {
+  if (!safeConfirm("重置密钥？发卡记录会保留。")) return;
+  safeRemove(STORAGE_SECRET);
+  refreshPanels();
+  toast("已重置");
+});
+
+bindTap($("clear-all-link"), () => {
+  if (!safeConfirm("清空所有本机数据（密钥 + 发卡记录）？此操作不可撤销。")) return;
+  safeRemove(STORAGE_SECRET);
+  safeRemove(STORAGE_HIST);
+  refreshPanels();
+  toast("已清空");
+});
+
+bindTap($("clear-hist-btn"), () => {
+  if (!safeConfirm("清空发卡记录？")) return;
+  saveHist([]);
+  refreshHistory();
+  toast("已清空");
+});
+
+// 防止 input/select 在 iOS 上被 touchend 阻止默认行为
+// （只对 .btn 元素绑定 touchend，input/select 不绑）
+
+// ===== 启动 =====
+detectEnv();
+checkCrypto();
+refreshPanels();
+</script>
+</body>
+</html>
